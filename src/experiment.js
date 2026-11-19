@@ -13,10 +13,13 @@ let completed = 0;
 let errors = 0;
 let successes = 0;
 let firstFailureMs = null;
+let cloudRequests = 0;
+let onpremRequests = 0;
 
 function runOne() {
   const req = http.request({ hostname: url.hostname, port: url.port, path: "/", method: "GET" }, res => {
-    res.resume();
+    let body = "";
+    res.on("data", chunk => body += chunk);
     res.on("end", () => {
       const elapsed = Date.now() - started;
       if (res.statusCode >= 500) {
@@ -24,6 +27,13 @@ function runOne() {
         if (firstFailureMs === null) firstFailureMs = elapsed;
       } else {
         successes++;
+        try {
+          const payload = JSON.parse(body);
+          if (payload.rerouted || payload.target === "cloud") cloudRequests++;
+          else onpremRequests++;
+        } catch {
+          cloudRequests++;
+        }
       }
       completed++;
       if (completed === requests) finish();
@@ -40,8 +50,8 @@ function runOne() {
 
 function finish() {
   const elapsed = Date.now() - started;
-  const projectedCostCloud = Number((requests * cloudCostPerRequest).toFixed(4));
-  const projectedCostOnprem = Number((successes * onpremCostPerRequest).toFixed(4));
+  const projectedCostCloud = Number((cloudRequests * cloudCostPerRequest).toFixed(4));
+  const projectedCostOnprem = Number((onpremRequests * onpremCostPerRequest).toFixed(4));
   const result = {
     experiment: mode,
     migrationPercent: percent,
