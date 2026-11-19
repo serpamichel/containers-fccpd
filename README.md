@@ -28,7 +28,7 @@ MIGRATION_MODE=onprem MIGRATION_PERCENT=100 FAILURE_RATE=0.5 MITIGATION=off dock
 Em outro terminal:
 
 ```bash
-docker compose exec proxy sh -c "EXPERIMENT_MODE=before MIGRATION_PERCENT=100 REQUESTS=200 node experiment.js" | tee logs/before.jsonl
+docker compose exec proxy sh -c "EXPERIMENT_MODE=before MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/before.jsonl node experiment.js"
 ```
 
 ## Executar a mitigação
@@ -42,7 +42,7 @@ MIGRATION_MODE=onprem MIGRATION_PERCENT=100 FAILURE_RATE=0.5 MITIGATION=on docke
 Em outro terminal:
 
 ```bash
-docker compose exec proxy sh -c "EXPERIMENT_MODE=after MIGRATION_PERCENT=100 REQUESTS=200 node experiment.js" | tee logs/after.jsonl
+docker compose exec proxy sh -c "EXPERIMENT_MODE=after MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/after.jsonl node experiment.js"
 ```
 
 Com `MITIGATION=on`, o proxy desvia para o backend cloud quando o destino on-prem reporta

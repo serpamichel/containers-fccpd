@@ -1,1 +1,1 @@
-{"timestampUtc":"2026-11-19T03:06:13.370Z","beforeConfig":{"mitigation":"off","migrationPercent":100}}
+{"timestampUtc":"2026-11-19T03:59:30.743Z","experiment":"before","mitigation":"off","migrationPercent":100,"failureRate":0.5,"targetUrl":"http://localhost:3000","requests":200}

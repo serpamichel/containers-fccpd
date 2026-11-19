@@ -7,8 +7,5 @@
     "cloud": "node backend.js cloud",
     "onprem": "node backend.js onprem",
     "experiment": "node experiment.js"
-  },
-  "dependencies": {
-    "pdfkit": "^0.17.2"
   }
 }

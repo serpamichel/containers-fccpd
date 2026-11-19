@@ -9,9 +9,10 @@ services:
       MIGRATION_MODE: ${MIGRATION_MODE:-cloud}
       MIGRATION_PERCENT: ${MIGRATION_PERCENT:-0}
       MITIGATION: ${MITIGATION:-off}
-      FAILURE_TARGET: onprem
     ports:
       - "8080:3000"
+    volumes:
+      - ./logs:/app/logs
     depends_on:
       - cloud
       - onprem
@@ -47,6 +48,11 @@ services:
       - own_dc
     expose:
       - "3002"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3002/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 500ms
+      timeout: 1s
+      retries: 3
 
 networks:
   public_cloud:

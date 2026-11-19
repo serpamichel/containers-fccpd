@@ -15,6 +15,7 @@ let successes = 0;
 let firstFailureMs = null;
 let cloudRequests = 0;
 let onpremRequests = 0;
+let recoverySamples = [];
 
 function runOne() {
   const req = http.request({ hostname: url.hostname, port: url.port, path: "/", method: "GET" }, res => {
@@ -31,6 +32,7 @@ function runOne() {
           const payload = JSON.parse(body);
           if (payload.rerouted || payload.target === "cloud") cloudRequests++;
           else onpremRequests++;
+          if (Number.isFinite(payload.recoveryMs)) recoverySamples.push(payload.recoveryMs);
         } catch {
           cloudRequests++;
         }
@@ -52,6 +54,12 @@ function finish() {
   const elapsed = Date.now() - started;
   const projectedCostCloud = Number((cloudRequests * cloudCostPerRequest).toFixed(4));
   const projectedCostOnprem = Number((onpremRequests * onpremCostPerRequest).toFixed(4));
+  const recoveryMs = recoverySamples.length
+    ? Math.max(...recoverySamples)
+    : null;
+  const costRatio = projectedCostCloud === 0
+    ? null
+    : Number((projectedCostOnprem / projectedCostCloud).toFixed(4));
   const result = {
     experiment: mode,
     migrationPercent: percent,
@@ -62,10 +70,10 @@ function finish() {
     errorPercent: Number((errors * 100 / requests).toFixed(2)),
     throughputReqPerSec: Number((requests * 1000 / elapsed).toFixed(2)),
     firstFailureMs: firstFailureMs,
-    recoveryMs: mode === "after" ? elapsed : null,
+    recoveryMs,
     projectedCostCloud,
     projectedCostOnprem,
-    costRatioOnpremCloud: Number((projectedCostOnprem / projectedCostCloud).toFixed(4)),
+    costRatioOnpremCloud: costRatio,
     timestampUtc: new Date().toISOString()
   };
   console.log(JSON.stringify(result));
