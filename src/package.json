@@ -1,0 +1,14 @@
+{
+  "name": "cloud-exit-miniature",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "proxy": "node proxy.js",
+    "cloud": "node backend.js cloud",
+    "onprem": "node backend.js onprem",
+    "experiment": "node experiment.js"
+  },
+  "dependencies": {
+    "pdfkit": "^0.17.2"
+  }
+}

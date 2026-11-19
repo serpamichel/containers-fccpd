@@ -1,0 +1,53 @@
+services:
+  proxy:
+    build:
+      context: ./src
+    container_name: cloud_exit_proxy
+    environment:
+      CLOUD_URL: http://cloud:3001
+      ONPREM_URL: http://onprem:3002
+      MIGRATION_MODE: ${MIGRATION_MODE:-cloud}
+      MIGRATION_PERCENT: ${MIGRATION_PERCENT:-0}
+      MITIGATION: ${MITIGATION:-off}
+      FAILURE_TARGET: onprem
+    ports:
+      - "8080:3000"
+    depends_on:
+      - cloud
+      - onprem
+    networks:
+      - public_cloud
+      - own_dc
+
+  cloud:
+    build:
+      context: ./src
+    container_name: cloud_backend
+    command: ["node", "backend.js", "cloud"]
+    environment:
+      PORT: 3001
+      SERVICE: cloud
+      COST_PER_REQUEST: 0.002
+    networks:
+      - public_cloud
+    expose:
+      - "3001"
+
+  onprem:
+    build:
+      context: ./src
+    container_name: onprem_backend
+    command: ["node", "backend.js", "onprem"]
+    environment:
+      PORT: 3002
+      SERVICE: onprem
+      COST_PER_REQUEST: 0.0002
+      FAILURE_RATE: ${FAILURE_RATE:-0}
+    networks:
+      - own_dc
+    expose:
+      - "3002"
+
+networks:
+  public_cloud:
+  own_dc:
