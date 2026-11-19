@@ -1,5 +1,14 @@
 # Miniatura do caso 37signals — saída da nuvem
 
+## Integrantes
+
+| Integrante | Perfil | Foto |
+| --- | --- | --- |
+| Davi Lucas Da Silva Pinheiro | [github.com/davi081dev](https://github.com/davi081dev) | [![Davi Lucas](https://github.com/davi081dev.png?size=96)](https://github.com/davi081dev) |
+| Hugo Mendonça | [github.com/BRKHugz](https://github.com/BRKHugz) | [![Hugo Vinicius de Lima Mendonça](https://github.com/BRKHugz.png?size=96)](https://github.com/BRKHugz) |
+| Luiz Fernando Ramos de Toledo | [github.com/FernandoToledo69](https://github.com/FernandoToledo69) | [![Luiz Fernando Ramos de Toledo](https://github.com/FernandoToledo69.png?size=96)](https://github.com/FernandoToledo69) |
+| Michel dos Santos Serpa | [github.com/serpamichel](https://github.com/serpamichel) | [![Michel dos Santos Serpa](https://github.com/serpamichel.png?size=96)](https://github.com/serpamichel) |
+
 Este experimento representa o mecanismo central da decisão apresentada por 37signals:
 a concentração de infraestrutura em fornecedores gerenciados e a transição gradual para
 hardware próprio. Não representa a operação real de migração nem uma avaliação completa
