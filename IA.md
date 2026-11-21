@@ -25,11 +25,12 @@ Solicitei comparar comandos do README, portas do Compose e caminhos dos logs.
 **Mudado:** os exemplos passaram a usar sintaxe PowerShell e `localhost:3000` dentro do container.
 **Descartado:** gravar `logs/` usando caminhos absolutos do ambiente local.
 
-## Prompt 5 — Registro de erros e correções
-Solicitei identificar pelo menos dois erros que poderiam ser encontrados ao executar o código.
-**Aceito:** falha aleatória, destino errado no experimento e ausência de configuração bruta.
-**Mudado:** cada correção foi associada ao arquivo que a implementa.
-**Descartado:** alegações sobre PDF ou execução Docker não observadas neste ambiente.
+## Prompt 5 — Organização do registro de erros observados
+Solicitei estruturar o registro dos erros que encontramos ao executar e revisar a implementação.
+**Aceito:** o formato que separa observação, correção e arquivo afetado.
+**Mudado:** mantive os erros como resultados das nossas execuções e revisões, sem apresentá-los
+como diagnósticos originados pela IA.
+**Descartado:** afirmar que um erro foi corrigido sem registrar sua evidência ou teste.
 
 ## Erros encontrados e correções
 

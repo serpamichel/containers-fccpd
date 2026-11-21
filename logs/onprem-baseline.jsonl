@@ -1,0 +1,1 @@
+{"experiment":"onprem-baseline","migrationPercent":100,"requests":200,"elapsedMs":1098,"successes":200,"errors":0,"errorPercent":0,"throughputReqPerSec":182.15,"firstFailureMs":null,"recoveryMs":null,"projectedCostCloud":0,"projectedCostOnprem":0.04,"costRatioOnpremCloud":null,"timestampUtc":"2026-11-21T23:09:01.082Z"}

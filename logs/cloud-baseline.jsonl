@@ -1,0 +1,1 @@
+{"experiment":"cloud-baseline","migrationPercent":0,"requests":200,"elapsedMs":340,"successes":200,"errors":0,"errorPercent":0,"throughputReqPerSec":588.24,"firstFailureMs":null,"recoveryMs":null,"projectedCostCloud":0.4,"projectedCostOnprem":0,"costRatioOnpremCloud":0,"timestampUtc":"2026-11-21T23:07:46.218Z"}

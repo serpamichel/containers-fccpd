@@ -19,9 +19,13 @@ do retorno financeiro.
 - Docker Engine com Docker Compose v2
 - Uma porta local 8080 disponível
 
-## Executar a falha
+## Executar os cenários
 
-```bash
+### PowerShell (Windows)
+
+#### Antes da mitigação
+
+```powershell
 $env:MIGRATION_MODE="onprem"
 $env:MIGRATION_PERCENT="100"
 $env:FAILURE_RATE="0"
@@ -32,22 +36,15 @@ docker compose up --build
 
 Em outro terminal:
 
-```bash
+```powershell
 docker compose exec proxy sh -c "EXPERIMENT_MODE=before MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/before.jsonl node experiment.js"
-docker compose logs > logs/containers-before.log
-```
-
-Pare a execução antes do cenário seguinte:
-
-```bash
+docker compose logs | Out-File -Encoding utf8 logs/containers-before.log
 docker compose down
 ```
 
-## Executar a mitigação
+#### Depois da mitigação
 
-Pare os containers e execute:
-
-```bash
+```powershell
 $env:MIGRATION_MODE="onprem"
 $env:MIGRATION_PERCENT="100"
 $env:FAILURE_RATE="0"
@@ -58,14 +55,66 @@ docker compose up --build
 
 Em outro terminal:
 
+```powershell
+docker compose exec proxy sh -c "EXPERIMENT_MODE=after MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/after.jsonl node experiment.js"
+docker compose logs | Out-File -Encoding utf8 logs/containers-after.log
+docker compose down
+```
+
+### Bash (Linux/macOS)
+
+```bash
+MIGRATION_MODE=onprem MIGRATION_PERCENT=100 FAILURE_RATE=0 FORCE_FAILURE=true MITIGATION=off docker compose up --build
+```
+
+Em outro terminal:
+
+```bash
+docker compose exec proxy sh -c "EXPERIMENT_MODE=before MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/before.jsonl node experiment.js"
+docker compose logs > logs/containers-before.log
+docker compose down
+```
+
+Depois da mitigação:
+
+```bash
+MIGRATION_MODE=onprem MIGRATION_PERCENT=100 FAILURE_RATE=0 FORCE_FAILURE=true MITIGATION=on docker compose up --build
+```
+
+Em outro terminal:
+
 ```bash
 docker compose exec proxy sh -c "EXPERIMENT_MODE=after MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/after.jsonl node experiment.js"
 docker compose logs > logs/containers-after.log
+docker compose down
 ```
 
 Com `MITIGATION=on`, o proxy desvia para o backend cloud quando o destino on-prem reporta
 falha/indisponibilidade. `FORCE_FAILURE=true` mantém o on-prem indisponível de forma determinística;
 `FAILURE_RATE` permanece disponível para testes probabilísticos.
+
+### Baselines de custo e vazão
+
+Para a comparação limpa exigida pelos artigos 7 e 8:
+
+```powershell
+# Cenário 100% cloud
+$env:MIGRATION_PERCENT="0"
+$env:MIGRATION_MODE="cloud"
+$env:FORCE_FAILURE="false"
+$env:MITIGATION="off"
+docker compose up --build
+docker compose exec proxy sh -c "EXPERIMENT_MODE=cloud-baseline MIGRATION_PERCENT=0 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/cloud-baseline.jsonl node experiment.js"
+
+# Cenário 100% on-prem saudável
+$env:MIGRATION_PERCENT="100"
+$env:MIGRATION_MODE="onprem"
+$env:FORCE_FAILURE="false"
+$env:FAILURE_RATE="0"
+$env:MITIGATION="off"
+docker compose up --build
+docker compose exec proxy sh -c "EXPERIMENT_MODE=onprem-baseline MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/onprem-baseline.jsonl node experiment.js"
+```
 
 ## Estrutura
 

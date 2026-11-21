@@ -16,7 +16,7 @@ function targetRequest(req) {
 
 function forward(req, res) {
   const base = targetRequest(req);
-  const options = { hostname: base.hostname, port: base.port, path: "/health", method: "GET" };
+  const options = { hostname: base.hostname, port: base.port, path: "/", method: "GET" };
   const request = http.request(options, response => {
     let body = "";
     response.on("data", chunk => body += chunk);
@@ -25,7 +25,11 @@ function forward(req, res) {
         healthy = true;
         if (base.hostname === onpremUrl.hostname) rerouteStartMs = null;
         res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({ ok: true, target: base.hostname, reroutes: rerouteCount }));
+        res.end(JSON.stringify({
+          ok: true,
+          target: base === onpremUrl ? "onprem" : "cloud",
+          reroutes: rerouteCount
+        }));
       } else {
         healthy = false;
         rerouteCount++;
@@ -56,7 +60,12 @@ function forwardToCloud(res) {
   const request = http.request({ hostname: base.hostname, port: base.port, path: "/health", method: "GET" }, response => {
     const recoveryMs = rerouteStartMs === null ? null : Date.now() - rerouteStartMs;
     res.writeHead(response.statusCode === 200 ? 200 : 503, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: response.statusCode === 200, target: base.hostname, rerouted: true, recoveryMs }));
+    res.end(JSON.stringify({
+      ok: response.statusCode === 200,
+      target: "cloud",
+      rerouted: true,
+      recoveryMs
+    }));
   });
   request.on("error", () => {
     res.writeHead(503, { "content-type": "application/json" });

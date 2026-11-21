@@ -16,6 +16,7 @@ let firstFailureMs = null;
 let cloudRequests = 0;
 let onpremRequests = 0;
 let recoverySamples = [];
+let firstRerouteMs = null;
 
 function runOne() {
   const req = http.request({ hostname: url.hostname, port: url.port, path: "/", method: "GET" }, res => {
@@ -30,8 +31,12 @@ function runOne() {
         successes++;
         try {
           const payload = JSON.parse(body);
-          if (payload.rerouted || payload.target === "cloud") cloudRequests++;
-          else onpremRequests++;
+          if (payload.rerouted || payload.target === "cloud") {
+            cloudRequests++;
+            if (payload.rerouted && firstRerouteMs === null) firstRerouteMs = elapsed;
+          } else {
+            onpremRequests++;
+          }
           if (Number.isFinite(payload.recoveryMs)) recoverySamples.push(payload.recoveryMs);
         } catch {
           cloudRequests++;
@@ -54,9 +59,9 @@ function finish() {
   const elapsed = Date.now() - started;
   const projectedCostCloud = Number((cloudRequests * cloudCostPerRequest).toFixed(4));
   const projectedCostOnprem = Number((onpremRequests * onpremCostPerRequest).toFixed(4));
-  const recoveryMs = recoverySamples.length
-    ? Math.max(...recoverySamples)
-    : null;
+  const recoveryMs = firstRerouteMs !== null && firstFailureMs !== null
+    ? Math.max(0, firstRerouteMs - firstFailureMs)
+    : (recoverySamples.length ? Math.max(...recoverySamples) : null);
   const costRatio = projectedCostCloud === 0
     ? null
     : Number((projectedCostOnprem / projectedCostCloud).toFixed(4));

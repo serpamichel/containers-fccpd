@@ -1,0 +1,1 @@
+{"timestampUtc":"2026-11-21T23:09:01.082Z","experiment":"onprem-baseline","mitigation":"off","migrationPercent":100,"failureRate":0,"forceFailure":false,"targetUrl":"http://localhost:3060","requests":200}

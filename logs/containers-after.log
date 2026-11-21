@@ -1,0 +1,3 @@
+﻿{"event":"backend_started","service":"cloud","port":3051}
+{"event":"backend_started","service":"onprem","port":3052}
+{"event":"proxy_started","port":3050,"migrationPercent":100,"mitigation":true}
