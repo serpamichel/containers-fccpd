@@ -1,1 +1,1 @@
-{"timestampUtc":"2026-11-19T04:00:22.195Z","experiment":"after","mitigation":"on","migrationPercent":100,"failureRate":0.5,"targetUrl":"http://localhost:3000","requests":200}
+{"timestampUtc":"2026-11-21T22:23:33.548Z","experiment":"after","mitigation":"on","migrationPercent":100,"failureRate":0,"forceFailure":true,"targetUrl":"http://localhost:3020","requests":200}

@@ -4,11 +4,12 @@ const kind = process.argv[2] || process.env.SERVICE || "cloud";
 const port = Number(process.env.PORT || (kind === "cloud" ? 3001 : 3002));
 const cost = Number(process.env.COST_PER_REQUEST || (kind === "cloud" ? 0.002 : 0.0002));
 const failureRate = Number(process.env.FAILURE_RATE || 0);
+const forceFailure = process.env.FORCE_FAILURE === "true";
+const shouldFail = () => forceFailure || Math.random() < failureRate;
 
 http.createServer((req, res) => {
   if (req.url === "/health") {
-    const random = Math.random();
-    if (random < failureRate) {
+    if (shouldFail()) {
       res.writeHead(503, { "content-type": "application/json" });
       res.end(JSON.stringify({ status: "failed", service: kind }));
       return;
@@ -17,8 +18,7 @@ http.createServer((req, res) => {
     res.end(JSON.stringify({ status: "ok", service: kind }));
     return;
   }
-  const random = Math.random();
-  if (random < failureRate) {
+  if (shouldFail()) {
     res.writeHead(503, { "content-type": "application/json" });
     res.end(JSON.stringify({ service: kind, error: "simulated_failure" }));
     return;

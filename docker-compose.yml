@@ -44,6 +44,7 @@ services:
       SERVICE: onprem
       COST_PER_REQUEST: 0.0002
       FAILURE_RATE: ${FAILURE_RATE:-0}
+      FORCE_FAILURE: ${FORCE_FAILURE:-false}
     networks:
       - own_dc
     expose:
