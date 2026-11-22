@@ -5,105 +5,91 @@ const cloudUrl = new URL(process.env.CLOUD_URL);
 const onpremUrl = new URL(process.env.ONPREM_URL);
 const migrationPercent = Number(process.env.MIGRATION_PERCENT || 0);
 const mitigation = process.env.MITIGATION === "on";
+const healthIntervalMs = Number(process.env.HEALTH_INTERVAL_MS || 500);
+
+// `healthy` descreve SOMENTE o destino on-prem (healthcheck ativo + resultado
+// das requisições encaminhadas a ele). Falhas do cloud não alteram esse estado.
 let healthy = true;
 let rerouteCount = 0;
-let rerouteStartMs = null;
 
-function targetRequest(req) {
-  const useOnprem = Math.random() * 100 < migrationPercent && (!mitigation || healthy);
-  return useOnprem ? onpremUrl : cloudUrl;
-}
-
-function forward(req, res) {
-  const base = targetRequest(req);
-  const options = { hostname: base.hostname, port: base.port, path: "/", method: "GET" };
-  const request = http.request(options, response => {
-    let body = "";
-    response.on("data", chunk => body += chunk);
-    response.on("end", () => {
-      if (response.statusCode === 200) {
-        healthy = true;
-        if (base.hostname === onpremUrl.hostname) rerouteStartMs = null;
-        res.writeHead(200, { "content-type": "application/json" });
-        res.end(JSON.stringify({
-          ok: true,
-          target: base === onpremUrl ? "onprem" : "cloud",
-          reroutes: rerouteCount
-        }));
-      } else {
-        healthy = false;
-        rerouteCount++;
-        rerouteStartMs = rerouteStartMs || Date.now();
-        if (mitigation) forwardToCloud(res);
-        else {
-          res.writeHead(503, { "content-type": "application/json" });
-          res.end(JSON.stringify({ ok: false, target: base.hostname }));
-        }
-      }
-    });
-  });
-  request.on("error", () => {
-    healthy = false;
-    rerouteCount++;
-    rerouteStartMs = rerouteStartMs || Date.now();
-    if (mitigation) forwardToCloud(res);
-    else {
-      res.writeHead(503, { "content-type": "application/json" });
-      res.end(JSON.stringify({ ok: false, target: base.hostname }));
-    }
-  });
-  request.end();
-}
-
-function forwardToCloud(res) {
-  const base = cloudUrl;
-  const request = http.request({ hostname: base.hostname, port: base.port, path: "/health", method: "GET" }, response => {
-    const recoveryMs = rerouteStartMs === null ? null : Date.now() - rerouteStartMs;
-    res.writeHead(response.statusCode === 200 ? 200 : 503, { "content-type": "application/json" });
-    res.end(JSON.stringify({
-      ok: response.statusCode === 200,
-      target: "cloud",
-      rerouted: true,
-      recoveryMs
+function setHealthy(value) {
+  if (value !== healthy) {
+    console.log(JSON.stringify({
+      event: value ? "onprem_healthy" : "onprem_unhealthy",
+      timestampUtc: new Date().toISOString()
     }));
-  });
-  request.on("error", () => {
-    res.writeHead(503, { "content-type": "application/json" });
-    res.end(JSON.stringify({ ok: false, target: "none" }));
-  });
-  request.end();
+  }
+  healthy = value;
 }
 
-function checkOnpremHealth() {
-  const request = http.request({
-    hostname: onpremUrl.hostname,
-    port: onpremUrl.port,
-    path: "/health",
-    method: "GET"
-  }, response => {
-    if (response.statusCode === 200) {
-      healthy = true;
-      rerouteStartMs = null;
-    } else {
-      healthy = false;
-    }
-    response.resume();
+function get(base, path) {
+  return new Promise(resolve => {
+    const request = http.request(
+      { hostname: base.hostname, port: base.port, path, method: "GET" },
+      response => {
+        let body = "";
+        response.on("data", chunk => (body += chunk));
+        response.on("end", () => resolve({ status: response.statusCode, body }));
+      }
+    );
+    request.on("error", () => resolve({ status: 0, body: "" }));
+    request.end();
   });
-  request.on("error", () => {
-    healthy = false;
-  });
-  request.end();
 }
 
-setInterval(checkOnpremHealth, 500).unref();
+function parse(body) {
+  try { return JSON.parse(body); } catch { return {}; }
+}
+
+function send(res, status, payload) {
+  res.writeHead(status, { "content-type": "application/json" });
+  res.end(JSON.stringify(payload));
+}
+
+// Serve a requisição pelo backend cloud. `rerouted` indica desvio por mitigação.
+async function viaCloud(res, rerouted) {
+  const r = await get(cloudUrl, "/");
+  if (r.status === 200) {
+    return send(res, 200, { ok: true, target: "cloud", rerouted, cost: parse(r.body).cost });
+  }
+  return send(res, 503, { ok: false, target: "cloud", rerouted });
+}
+
+async function handle(res) {
+  const wantsOnprem = Math.random() * 100 < migrationPercent;
+  if (!wantsOnprem) return viaCloud(res, false);
+
+  // Mitigação (circuit breaker simples): com o on-prem marcado como doente,
+  // nem tenta; vai direto ao cloud.
+  if (mitigation && !healthy) {
+    rerouteCount++;
+    return viaCloud(res, true);
+  }
+
+  const r = await get(onpremUrl, "/");
+  if (r.status === 200) {
+    setHealthy(true);
+    return send(res, 200, { ok: true, target: "onprem", rerouted: false, cost: parse(r.body).cost });
+  }
+  setHealthy(false);
+  if (!mitigation) return send(res, 503, { ok: false, target: "onprem", rerouted: false });
+  rerouteCount++;
+  return viaCloud(res, true);
+}
+
+async function checkOnpremHealth() {
+  const r = await get(onpremUrl, "/health");
+  setHealthy(r.status === 200);
+}
+
+setInterval(checkOnpremHealth, healthIntervalMs).unref();
+checkOnpremHealth();
 
 http.createServer((req, res) => {
   if (req.url === "/config") {
-    res.writeHead(200, { "content-type": "application/json" });
-    res.end(JSON.stringify({ migrationPercent, mitigation, healthy, rerouteCount }));
-    return;
+    return send(res, 200, { migrationPercent, mitigation, healthIntervalMs, healthy, rerouteCount });
   }
-  forward(req, res);
+  handle(res);
 }).listen(port, "0.0.0.0", () => {
   console.log(JSON.stringify({ event: "proxy_started", port, migrationPercent, mitigation }));
 });

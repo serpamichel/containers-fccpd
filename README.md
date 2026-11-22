@@ -14,117 +14,94 @@ a concentração de infraestrutura em fornecedores gerenciados e a transição g
 hardware próprio. Não representa a operação real de migração nem uma avaliação completa
 do retorno financeiro.
 
+## Arquitetura
+
+- `proxy` (redes `public_cloud` e `own_dc`): decide, por requisição, se o destino é o cloud ou o on-prem (`MIGRATION_PERCENT`). Com `MITIGATION=on`, faz healthcheck periódico do on-prem e desvia para o cloud quando ele falha.
+- `cloud` (rede `public_cloud`): representa o provedor de nuvem pública.
+- `onprem` (rede `own_dc`): representa o hardware próprio. A falha é injetada em tempo de execução por `POST /admin/fail` e desfeita por `POST /admin/restore` (só alcançáveis dentro das redes do Compose; a única porta publicada é a do proxy, `8080`).
+
+Cada backend devolve o custo por requisição (`COST_PER_REQUEST`, definido no `docker-compose.yml`); o proxy repassa esse valor e o `experiment.js` soma o que recebe. Existe, portanto, uma única fonte dos preços.
+
 ## Pré-requisitos
 
-- Docker Engine com Docker Compose v2
-- Uma porta local 8080 disponível
+- Docker Engine com Docker Compose v2 (`docker compose up --wait`)
+- Porta local 8080 disponível
+- PowerShell (Windows) ou Bash (Linux/macOS)
 
-## Executar os cenários
+## Reproduzir tudo (recomendado)
 
-### PowerShell (Windows)
-
-#### Antes da mitigação
+Um único comando sobe cada cenário, roda o experimento e grava **todas** as evidências em `logs/`.
 
 ```powershell
-$env:MIGRATION_MODE="onprem"
-$env:MIGRATION_PERCENT="100"
-$env:FAILURE_RATE="0"
-$env:FORCE_FAILURE="true"
-$env:MITIGATION="off"
-docker compose up --build
+# Windows / PowerShell
+.\run-experiments.ps1
 ```
 
-Em outro terminal:
+```bash
+# Linux / macOS
+chmod +x run-experiments.sh && ./run-experiments.sh
+```
+
+| Cenário | Proxy | Experimento | Pergunta |
+| --- | --- | --- | --- |
+| `before` | 100% on-prem, `MITIGATION=off` | falha no on-prem em 500 ms, restaurada em 1500 ms | O que ocorre sem mitigação? |
+| `after` | 100% on-prem, `MITIGATION=on` | idem | O healthcheck com fallback reduz o dano? |
+| `cloud-baseline` | 0% on-prem | sem falha, rajada de 200 requisições | vazão e custo 100% cloud |
+| `onprem-baseline` | 100% on-prem | sem falha, rajada de 200 requisições | vazão e custo 100% on-prem |
+
+Cada cenário executa 3 rodadas de aquecimento (descartadas nas estatísticas, mas registradas com `warmup: true`) e 10 rodadas medidas, cada uma com 200 requisições. O resumo traz a **mediana** (e mín./máx.) das rodadas.
+
+### Arquivos gerados em `logs/` (por cenário `<nome>`)
+
+| Arquivo | Origem |
+| --- | --- |
+| `<nome>.jsonl` | resultado de cada rodada (`type: "run"`) e resumo (`type: "summary"`), gravado por `experiment.js` |
+| `<nome>-config.jsonl` | configuração real lida dos containers (proxy e backends) no início da execução, gravada por `experiment.js` |
+| `containers-<nome>.log` | `docker compose logs` (todos os serviços, com prefixo) |
+| `container-{proxy,cloud,onprem}-<nome>.log` | logs de cada serviço, sem prefixo; contêm os eventos `fault_injected`, `fault_restored`, `onprem_unhealthy` e `onprem_healthy` |
+
+## Execução manual de um cenário
 
 ```powershell
-docker compose exec proxy sh -c "EXPERIMENT_MODE=before MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/before.jsonl node experiment.js"
-docker compose logs | Out-File -Encoding utf8 logs/containers-before.log
+$env:MIGRATION_MODE="onprem"; $env:MIGRATION_PERCENT="100"; $env:MITIGATION="off"
+$env:FAILURE_RATE="0"; $env:FORCE_FAILURE="false"
+docker compose up -d --build --wait
+docker compose exec -T proxy sh -c "EXPERIMENT_MODE=before REQUESTS=200 RUNS=10 WARMUP_RUNS=3 INTERVAL_MS=10 FAULT_AT_MS=500 RESTORE_AT_MS=1500 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/before.jsonl node experiment.js"
+docker compose logs --no-color | Out-File -Encoding utf8 logs/containers-before.log
 docker compose down
 ```
 
-#### Depois da mitigação
+Em Bash, use `export VAR=valor` no lugar de `$env:VAR="valor"` e `docker compose logs --no-color > logs/containers-before.log`. Para o cenário `after`, use `MITIGATION=on` e `EXPERIMENT_MODE=after`.
 
-```powershell
-$env:MIGRATION_MODE="onprem"
-$env:MIGRATION_PERCENT="100"
-$env:FAILURE_RATE="0"
-$env:FORCE_FAILURE="true"
-$env:MITIGATION="on"
-docker compose up --build
-```
+Variáveis do `experiment.js`: `REQUESTS`, `RUNS`, `WARMUP_RUNS`, `INTERVAL_MS` (0 = rajada), `FAULT_AT_MS`, `RESTORE_AT_MS`, `TARGET_URL`, `LOG_FILE`.
 
-Em outro terminal:
+Para montar a tabela do laudo a partir dos logs (mediana e faixa mín.–máx. de cada métrica), rode no host `node src/summarize-logs.js`.
 
-```powershell
-docker compose exec proxy sh -c "EXPERIMENT_MODE=after MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/after.jsonl node experiment.js"
-docker compose logs | Out-File -Encoding utf8 logs/containers-after.log
-docker compose down
-```
+## Métricas (campos dos `.jsonl`)
 
-### Bash (Linux/macOS)
+| Campo | Definição |
+| --- | --- |
+| `errorPercent` | % de requisições que o cliente recebeu com status ≥ 500 ou erro de conexão |
+| `timeToFailureMs` | da injeção da falha até o primeiro erro visto pelo cliente (`null` = nenhum erro) |
+| `timeToRecoveryMs` | do primeiro erro até a primeira resposta bem-sucedida depois do último erro (`0` = nenhum erro; `null` = sem falha injetada ou sem recuperação na janela) |
+| `failoverMs` | da injeção da falha até a primeira resposta servida pelo cloud como fallback (só com mitigação) |
+| `failbackMs` | da restauração do on-prem até a primeira resposta servida por ele |
+| `totalReqPerSec` | requisições enviadas ÷ duração (inclui as que falharam) |
+| `goodputReqPerSec` | requisições bem-sucedidas ÷ duração; é a vazão útil e a usada nas comparações |
+| `projectedCostCloud` / `projectedCostOnprem` | soma dos custos devolvidos pelos backends nas respostas bem-sucedidas |
 
-```bash
-MIGRATION_MODE=onprem MIGRATION_PERCENT=100 FAILURE_RATE=0 FORCE_FAILURE=true MITIGATION=off docker compose up --build
-```
+## Limitações e leitura dos resultados
 
-Em outro terminal:
-
-```bash
-docker compose exec proxy sh -c "EXPERIMENT_MODE=before MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/before.jsonl node experiment.js"
-docker compose logs > logs/containers-before.log
-docker compose down
-```
-
-Depois da mitigação:
-
-```bash
-MIGRATION_MODE=onprem MIGRATION_PERCENT=100 FAILURE_RATE=0 FORCE_FAILURE=true MITIGATION=on docker compose up --build
-```
-
-Em outro terminal:
-
-```bash
-docker compose exec proxy sh -c "EXPERIMENT_MODE=after MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/after.jsonl node experiment.js"
-docker compose logs > logs/containers-after.log
-docker compose down
-```
-
-Com `MITIGATION=on`, o proxy desvia para o backend cloud quando o destino on-prem reporta
-falha/indisponibilidade. `FORCE_FAILURE=true` mantém o on-prem indisponível de forma determinística;
-`FAILURE_RATE` permanece disponível para testes probabilísticos.
-
-### Baselines de custo e vazão
-
-Para a comparação limpa exigida pelos artigos 7 e 8:
-
-```powershell
-# Cenário 100% cloud
-$env:MIGRATION_PERCENT="0"
-$env:MIGRATION_MODE="cloud"
-$env:FORCE_FAILURE="false"
-$env:MITIGATION="off"
-docker compose up --build
-docker compose exec proxy sh -c "EXPERIMENT_MODE=cloud-baseline MIGRATION_PERCENT=0 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/cloud-baseline.jsonl node experiment.js"
-
-# Cenário 100% on-prem saudável
-$env:MIGRATION_PERCENT="100"
-$env:MIGRATION_MODE="onprem"
-$env:FORCE_FAILURE="false"
-$env:FAILURE_RATE="0"
-$env:MITIGATION="off"
-docker compose up --build
-docker compose exec proxy sh -c "EXPERIMENT_MODE=onprem-baseline MIGRATION_PERCENT=100 REQUESTS=200 TARGET_URL=http://localhost:3000 LOG_FILE=/app/logs/onprem-baseline.jsonl node experiment.js"
-```
+- Os preços por requisição (`0.002` no cloud e `0.0002` no on-prem, uma razão de 10×) são **premissas ilustrativas**, não dados do artigo. O artigo da 37signals trata de gastos anuais de US$ 3,2 milhões que cairiam para US$ 1,3 milhão (razão de cerca de 0,4×). Os custos da miniatura servem só para mostrar o modelo de custo, não para prever a economia real.
+- O caso da 37signals é uma decisão de custo, não um incidente. A falha injetada no on-prem é um risco da migração que a miniatura expõe, e não um evento descrito no artigo.
+- Cada cenário usa um proxy com um único percentual fixo (0% ou 100%); a migração gradual intermediária não foi medida.
+- Os tempos vêm de containers numa mesma máquina. A latência de rede, o hardware real e a carga real não são reproduzidos.
+- Os valores de `INTERVAL_MS` são aproximados: o agendador de timers do Node pode atrasar os envios em alguns milissegundos.
 
 ## Estrutura
 
 - `docker-compose.yml`: proxy, backend cloud e backend on-prem em redes separadas.
-- `src/`: serviços Node.js da miniatura.
+- `src/`: serviços Node.js da miniatura (`proxy.js`, `backend.js`, `experiment.js`).
+- `run-experiments.ps1` / `run-experiments.sh`: roteiro que reproduz todos os cenários.
 - `logs/`: evidências brutas das execuções.
-
-## Interpretação
-
-O experimento mede vazão, erro, custo por requisição projetado e recuperação. O artigo mede
-savings corporativos em dólares ao longo de cinco anos. Por isso, os valores financeiros são
-diretamente comparáveis apenas como sinal do modelo de custos, não como previsão da empresa
-discente.
+- `IA.md`: registro de uso de IA.

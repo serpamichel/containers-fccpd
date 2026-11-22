@@ -4,18 +4,22 @@ services:
       context: ./src
     container_name: cloud_exit_proxy
     environment:
+      PORT: 3000
       CLOUD_URL: http://cloud:3001
       ONPREM_URL: http://onprem:3002
       MIGRATION_MODE: ${MIGRATION_MODE:-cloud}
       MIGRATION_PERCENT: ${MIGRATION_PERCENT:-0}
       MITIGATION: ${MITIGATION:-off}
+      HEALTH_INTERVAL_MS: ${HEALTH_INTERVAL_MS:-500}
     ports:
       - "8080:3000"
     volumes:
       - ./logs:/app/logs
     depends_on:
-      - cloud
-      - onprem
+      cloud:
+        condition: service_healthy
+      onprem:
+        condition: service_started
     networks:
       - public_cloud
       - own_dc
@@ -28,11 +32,16 @@ services:
     environment:
       PORT: 3001
       SERVICE: cloud
-      COST_PER_REQUEST: 0.002
+      COST_PER_REQUEST: ${CLOUD_COST_PER_REQUEST:-0.002}
     networks:
       - public_cloud
     expose:
       - "3001"
+    healthcheck:
+      test: ["CMD-SHELL", "node -e \"fetch('http://localhost:3001/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      interval: 500ms
+      timeout: 1s
+      retries: 10
 
   onprem:
     build:
@@ -42,7 +51,7 @@ services:
     environment:
       PORT: 3002
       SERVICE: onprem
-      COST_PER_REQUEST: 0.0002
+      COST_PER_REQUEST: ${ONPREM_COST_PER_REQUEST:-0.0002}
       FAILURE_RATE: ${FAILURE_RATE:-0}
       FORCE_FAILURE: ${FORCE_FAILURE:-false}
     networks:
