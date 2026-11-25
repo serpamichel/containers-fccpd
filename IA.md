@@ -4,26 +4,26 @@ Os cinco prompts abaixo são os mais relevantes para o trabalho; o registro resu
 as solicitações e as decisões da equipe.
 
 ## Prompt 1 — Resumo verificável do artigo
-Solicitei identificar afirmações explícitas sobre migração, hardware, custos e cronograma.
+Solicitamos identificar afirmações explícitas sobre migração, hardware, custos e cronograma.
 **Aceito:** as cifras de US$ 3,2 milhões/US$ 1,3 milhão, US$ 700 mil de hardware e projeção acima
 de US$ 10 milhões em cinco anos.
 **Mudado:** cada afirmação foi separada da interpretação da equipe e limitada ao texto do artigo.
 **Descartado:** comparações com incidentes ou provedores não presentes na fonte.
 
 ## Prompt 2 — Arquitetura da miniatura
-Solicitei uma arquitetura com três containers, duas redes e mecanismos de migração/fallback.
+Solicitamos uma arquitetura com três containers, duas redes e mecanismos de migração/fallback.
 **Aceito:** proxy, backend cloud e backend on-prem.
 **Mudado:** foi acrescido um modo determinístico de falha e healthcheck.
 **Descartado:** Kubernetes e múltiplas réplicas, que não eram necessárias ao mecanismo central.
 
 ## Prompt 3 — Script de medição
-Solicitei medir vazão, erro, custo projetado e tempo até o fallback.
+Solicitamos medir vazão, erro, custo projetado e tempo até o fallback.
 **Aceito:** execução de 200 requisições e saída JSON-Lines.
 **Mudado:** a taxa probabilística foi complementada por `FORCE_FAILURE=true` e, depois, por injeção de falha em tempo de execução (`/admin/fail`).
 **Descartado:** métricas de recuperação sem uma origem direta nas respostas do proxy; elas são medidas pelo cliente em `src/experiment.js` (`timeToRecoveryMs`, `failoverMs` e `failbackMs`).
 
 ## Prompt 4 — Revisão da reprodutibilidade
-Solicitei comparar comandos do README, portas do Compose e caminhos dos logs.
+Solicitamos comparar comandos do README, portas do Compose e caminhos dos logs.
 **Aceito:** variáveis de ambiente do Compose e volume compartilhado em `logs/`.
 **Mudado:** os exemplos passaram a usar sintaxe PowerShell e `localhost:3000` dentro do container.
 **Descartado:** gravar `logs/` usando caminhos absolutos do ambiente local.
