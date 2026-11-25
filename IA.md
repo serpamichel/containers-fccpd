@@ -1,64 +1,74 @@
 # Registro de uso de IA
 
+Os cinco prompts abaixo são os mais relevantes para o trabalho; o registro resume
+as solicitações e as decisões da equipe.
+
 ## Prompt 1 — Resumo verificável do artigo
-Solicitei identificar afirmações explícitas sobre migração, hardware, custos e cronograma.
+Solicitamos identificar afirmações explícitas sobre migração, hardware, custos e cronograma.
 **Aceito:** as cifras de US$ 3,2 milhões/US$ 1,3 milhão, US$ 700 mil de hardware e projeção acima
 de US$ 10 milhões em cinco anos.
 **Mudado:** cada afirmação foi separada da interpretação da equipe e limitada ao texto do artigo.
 **Descartado:** comparações com incidentes ou provedores não presentes na fonte.
 
 ## Prompt 2 — Arquitetura da miniatura
-Solicitei uma arquitetura com três containers, duas redes e mecanismos de migração/fallback.
+Solicitamos uma arquitetura com três containers, duas redes e mecanismos de migração/fallback.
 **Aceito:** proxy, backend cloud e backend on-prem.
 **Mudado:** foi acrescido um modo determinístico de falha e healthcheck.
 **Descartado:** Kubernetes e múltiplas réplicas, que não eram necessárias ao mecanismo central.
 
 ## Prompt 3 — Script de medição
-Solicitei medir vazão, erro, custo projetado e tempo até o fallback.
+Solicitamos medir vazão, erro, custo projetado e tempo até o fallback.
 **Aceito:** execução de 200 requisições e saída JSON-Lines.
 **Mudado:** a taxa probabilística foi complementada por `FORCE_FAILURE=true` e, depois, por injeção de falha em tempo de execução (`/admin/fail`).
-**Descartado:** métricas de recuperação sem uma origem direta nas respostas do proxy (hoje medidas pelo cliente, em experiment.js: 	imeToRecoveryMs, ailoverMs, ailbackMs).
+**Descartado:** métricas de recuperação sem uma origem direta nas respostas do proxy; elas são medidas pelo cliente em `src/experiment.js` (`timeToRecoveryMs`, `failoverMs` e `failbackMs`).
 
 ## Prompt 4 — Revisão da reprodutibilidade
-Solicitei comparar comandos do README, portas do Compose e caminhos dos logs.
+Solicitamos comparar comandos do README, portas do Compose e caminhos dos logs.
 **Aceito:** variáveis de ambiente do Compose e volume compartilhado em `logs/`.
 **Mudado:** os exemplos passaram a usar sintaxe PowerShell e `localhost:3000` dentro do container.
 **Descartado:** gravar `logs/` usando caminhos absolutos do ambiente local.
 
-## Prompt 5 — Organização do registro de erros observados
-Solicitei estruturar o registro dos erros que encontramos ao executar e revisar a implementação.
-**Aceito:** o formato que separa observação, correção e arquivo afetado.
-**Mudado:** mantive os erros como resultados das nossas execuções e revisões, sem apresentá-los
-como diagnósticos originados pela IA.
-**Descartado:** afirmar que um erro foi corrigido sem registrar sua evidência ou teste.
+## Prompt 5 — Revisão de conformidade com o enunciado
+Solicitei comparar o repositório com o enunciado e apontar inconsistências verificáveis.
+**Aceito:** os apontamentos sobre mecanismo, métricas e rastreabilidade, após conferir código e logs.
+**Mudado:** o roteiro `run-experiments` passou a gerar as evidências dos quatro cenários.
+**Descartado:** reaproveitar números de execuções antigas que não eram reproduzíveis pelos scripts atuais.
 
 ## Erros encontrados e correções
+
+Os itens abaixo registram problemas encontrados durante a implementação e revisão.
+A equipe confirmou que os itens 4, 5, 6 e 10 foram erros de respostas da IA; os demais
+ficam registrados como problemas encontrados, sem atribuição de autoria.
 
 1. **O comando do experimento apontava para `localhost:8080`, que é a porta publicada no host,
    não a porta interna do proxy no container.**
    Correção: o README passou a usar `TARGET_URL=http://localhost:3000` dentro do container.
 
 2. **Falhas aleatórias não garantiam um experimento antes/depois comparável.**
-   Correção: foi adicionado `FORCE_FAILURE=true`, que mantém o backend on-prem indisponível
-   independentemente de `FAILURE_RATE`.
+   Correção: foi implementada a injeção programada por `/admin/fail` e `/admin/restore`.
+   `FORCE_FAILURE` permanece como opção do backend, mas os cenários registrados começam com
+   `FORCE_FAILURE=false` e usam injeção em tempo de execução (`FAULT_AT_MS` e `RESTORE_AT_MS`).
 
 3. **O proxy redirecionava por erros de rede mesmo sem mitigação, misturando os cenários.**
    Correção: o redirecionamento passou a ocorrer exclusivamente quando `MITIGATION=on`.
 
-4. **O código calculava `costRatioOnpremCloud` com divisão por zero.**
-   Correção: o campo recebe `null` quando não houve custo cloud na amostra.
+4. **Erro da IA confirmado:** foi sugerido calcular `costRatioOnpremCloud` por divisão direta.
+   Ao executar o cenário 100% on-prem, não havia custo cloud e a razão ficava indefinida.
+   Correção: representar a razão como `null` quando o denominador é zero, em vez de publicar
+   um número inválido. Esse campo pertencia ao cálculo anterior e não é produzido pelo schema
+   atual dos logs.
 
-5. **Os logs não registravam com precisão a configuração usada em cada execução.**
-   Correção: foram adicionados `before-config.jsonl` e `after-config.jsonl`.
+5. **Erro da IA confirmado:** uma versão do experimento não registrava a configuração efetiva
+   de cada cenário, o que impedia conferir os números com a execução.
+   Correção: `experiment.js` grava um arquivo de configuração por cenário. Verificação:
+   `logs/before-config.jsonl` e `logs/after-config.jsonl` registram a configuração e os
+   parâmetros temporais usados.
 
-## Prompt 6 — Revisão de conformidade com o enunciado
-Solicitei a um assistente de IA que comparasse o repositório com o enunciado do trabalho e corrigisse as inconsistências.
-**Aceito:** os apontamentos 6 a 11 abaixo, verificados lendo o código, e o roteiro `run-experiments` que gera todos os logs.
-**Mudado:** os números antigos de `logs/` foram removidos (continuam no histórico do Git), porque vinham de portas e de um formato que o README não reproduzia. Eles devem ser regenerados pelo roteiro antes da entrega.
-**Descartado:** reaproveitar os logs antigos no laudo.
-
-6. **Os logs antigos mostravam portas 3050–3072 e prefixos ausentes, diferentes do Compose e do `docker compose logs`.**
-   Correção: `run-experiments.ps1` e `run-experiments.sh` rodam cada cenário com o Compose e gravam todos os arquivos de `logs/`. Evidência: `logs/containers-*.log` e `logs/*-config.jsonl` regenerados.
+6. **Erro da IA confirmado:** uma versão anterior do roteiro/log usava portas 3050–3072
+   e saídas sem os prefixos esperados pelo Compose.
+   Correção: os roteiros atuais sobem os serviços pelo Compose e salvam logs com os nomes
+   de serviço e as configurações; conferimos `logs/containers-before.log`,
+   `logs/container-proxy-before.log` e `logs/before-config.jsonl`.
 
 7. **`proxy.js` marcava o on-prem como indisponível quando o cloud falhava e fazia o fallback em `/health` do cloud.**
    Correção: `healthy` passou a refletir só o on-prem, e o fallback faz `GET /` no cloud e repassa o custo.
@@ -69,8 +79,13 @@ Solicitei a um assistente de IA que comparasse o repositório com o enunciado do
 9. **A "vazão" do cenário `before` contava requisições que falharam.**
    Correção: o log traz `goodputReqPerSec` (apenas sucessos) além de `totalReqPerSec`.
 
-10. **Uma única execução por cenário gerava a diferença de vazão cloud × on-prem (588 contra 182 req/s) com código idêntico nos dois backends.**
-    Correção: 3 rodadas de aquecimento descartadas e 10 rodadas medidas, com mediana, mínimo e máximo. Evidência: `logs/cloud-baseline.jsonl` e `logs/onprem-baseline.jsonl`.
+10. **Erro da IA confirmado:** uma resposta tratou uma única rodada de vazão como conclusão
+    comparativa, embora os backends executem o mesmo código.
+    Ao repetir as execuções, observamos grande variação entre rodadas. Correção: o roteiro
+    descarta 3 aquecimentos e mede 10 rodadas, reportando mediana e faixa. Os baselines atuais
+    têm medianas de 2185,855 req/s (cloud) e 3348,215 req/s (on-prem), com faixas
+    1098,9–2941,18 e 921,66–4347,83, respectivamente; por isso não concluímos que o hardware
+    on-prem é mais rápido. Evidência: `logs/cloud-baseline.jsonl` e `logs/onprem-baseline.jsonl`.
 
 11. **Os preços estavam duplicados em `experiment.js` e no Compose, sem uso no proxy.**
     Correção: o custo vem de `COST_PER_REQUEST` do Compose, via resposta dos backends.
