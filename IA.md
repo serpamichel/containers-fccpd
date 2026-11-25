@@ -1,32 +1,32 @@
 # Registro de uso de IA
 
 ## Prompt 1 — Resumo verificável do artigo
-Solicitei identificar afirmações explícitas sobre migração, hardware, custos e cronograma.
+Solicitamos identificar afirmações explícitas sobre migração, hardware, custos e cronograma.
 **Aceito:** as cifras de US$ 3,2 milhões/US$ 1,3 milhão, US$ 700 mil de hardware e projeção acima
 de US$ 10 milhões em cinco anos.
 **Mudado:** cada afirmação foi separada da interpretação da equipe e limitada ao texto do artigo.
 **Descartado:** comparações com incidentes ou provedores não presentes na fonte.
 
 ## Prompt 2 — Arquitetura da miniatura
-Solicitei uma arquitetura com três containers, duas redes e mecanismos de migração/fallback.
+Solicitamos uma arquitetura com três containers, duas redes e mecanismos de migração/fallback.
 **Aceito:** proxy, backend cloud e backend on-prem.
 **Mudado:** foi acrescido um modo determinístico de falha e healthcheck.
 **Descartado:** Kubernetes e múltiplas réplicas, que não eram necessárias ao mecanismo central.
 
 ## Prompt 3 — Script de medição
-Solicitei medir vazão, erro, custo projetado e tempo até o fallback.
+Solicitamos medir vazão, erro, custo projetado e tempo até o fallback.
 **Aceito:** execução de 200 requisições e saída JSON-Lines.
 **Mudado:** a taxa probabilística foi complementada por `FORCE_FAILURE=true` e, depois, por injeção de falha em tempo de execução (`/admin/fail`).
 **Descartado:** métricas de recuperação sem uma origem direta nas respostas do proxy (hoje medidas pelo cliente, em experiment.js: 	imeToRecoveryMs, ailoverMs, ailbackMs).
 
 ## Prompt 4 — Revisão da reprodutibilidade
-Solicitei comparar comandos do README, portas do Compose e caminhos dos logs.
+Solicitamos comparar comandos do README, portas do Compose e caminhos dos logs.
 **Aceito:** variáveis de ambiente do Compose e volume compartilhado em `logs/`.
 **Mudado:** os exemplos passaram a usar sintaxe PowerShell e `localhost:3000` dentro do container.
 **Descartado:** gravar `logs/` usando caminhos absolutos do ambiente local.
 
 ## Prompt 5 — Organização do registro de erros observados
-Solicitei estruturar o registro dos erros que encontramos ao executar e revisar a implementação.
+Solicitamos estruturar o registro dos erros que encontramos ao executar e revisar a implementação.
 **Aceito:** o formato que separa observação, correção e arquivo afetado.
 **Mudado:** mantive os erros como resultados das nossas execuções e revisões, sem apresentá-los
 como diagnósticos originados pela IA.
@@ -52,7 +52,7 @@ como diagnósticos originados pela IA.
    Correção: foram adicionados `before-config.jsonl` e `after-config.jsonl`.
 
 ## Prompt 6 — Revisão de conformidade com o enunciado
-Solicitei a um assistente de IA que comparasse o repositório com o enunciado do trabalho e corrigisse as inconsistências.
+Solicitamos a um assistente de IA que comparasse o repositório com o enunciado do trabalho e corrigisse as inconsistências.
 **Aceito:** os apontamentos 6 a 11 abaixo, verificados lendo o código, e o roteiro `run-experiments` que gera todos os logs.
 **Mudado:** os números antigos de `logs/` foram removidos (continuam no histórico do Git), porque vinham de portas e de um formato que o README não reproduzia. Eles devem ser regenerados pelo roteiro antes da entrega.
 **Descartado:** reaproveitar os logs antigos no laudo.
